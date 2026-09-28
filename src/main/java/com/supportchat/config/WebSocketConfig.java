@@ -20,7 +20,9 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
-        // The initial HTTP handshake that upgrades the connection to WebSocket
+        // Used by the browser demo page: SockJS falls back to long-polling in old browsers/proxies that block WebSocket
         registry.addEndpoint("/ws").withSockJS();
+        // Used by non-browser clients (e.g. this project's own integration tests): raw WebSocket, no SockJS
+        registry.addEndpoint("/ws-native");
     }
 }
