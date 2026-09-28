@@ -1,0 +1,20 @@
+services:
+  postgres:
+    image: postgres:18
+    environment:
+      POSTGRES_DB: supportchat
+      POSTGRES_USER: supportchat
+      POSTGRES_PASSWORD: supportchat
+    ports:
+      # 5434 no host, para não conflitar com o Postgres de outros projetos (5432 e 5433 já usados)
+      - "5434:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U supportchat -d supportchat"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres-data:
