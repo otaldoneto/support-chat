@@ -1,42 +1,44 @@
 package com.supportchat.presence;
 
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
-import org.springframework.stereotype.Component;
-import org.springframework.web.socket.messaging.SessionConnectedEvent;
-import org.springframework.web.socket.messaging.SessionDisconnectEvent;
 import org.springframework.context.event.EventListener;
-import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
+import org.springframework.messaging.handler.annotation.DestinationVariable;
+import org.springframework.messaging.handler.annotation.MessageMapping;
+import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.socket.messaging.SessionDisconnectEvent;
 
-// Tracks which WebSocket sessions are currently connected. In-memory only: fine for a single-instance demo,
-// would need a shared store (e.g. Redis) if this ran behind a load balancer with multiple instances.
-@Component
+// Tracks which sessions are watching which conversation. In-memory only: fine for a single-instance demo,
+// would need a shared store (e.g. Redis) behind a load balancer with multiple instances.
+@Controller
 public class PresenceTracker {
 
-    private final Set<String> connectedSessions = ConcurrentHashMap.newKeySet();
+    private final Map<String, Long> conversationBySession = new ConcurrentHashMap<>();
     private final SimpMessagingTemplate messagingTemplate;
-
 
     public PresenceTracker(SimpMessagingTemplate messagingTemplate) {
         this.messagingTemplate = messagingTemplate;
-
     }
 
-    @EventListener
-    public void onConnect(SessionConnectedEvent event) {
-        StompHeaderAccessor accessor = StompHeaderAccessor.wrap(event.getMessage());
-        connectedSessions.add(accessor.getSessionId());
-        broadcastCount();
+    @MessageMapping("/conversations/{conversationId}/join")
+    public void join(@DestinationVariable Long conversationId, SimpMessageHeaderAccessor headerAccessor) {
+        conversationBySession.put(headerAccessor.getSessionId(), conversationId);
+        broadcastCount(conversationId);
     }
 
     @EventListener
     public void onDisconnect(SessionDisconnectEvent event) {
-        connectedSessions.remove(event.getSessionId());
-        broadcastCount();
+        Long conversationId = conversationBySession.remove(event.getSessionId());
+        if (conversationId != null) {
+            broadcastCount(conversationId);
+        }
     }
 
-    private void broadcastCount() {
-        messagingTemplate.convertAndSend("/topic/presence", connectedSessions.size());
+    private void broadcastCount(Long conversationId) {
+        long count = conversationBySession.values().stream().filter(conversationId::equals).count();
+        messagingTemplate.convertAndSend("/topic/conversations/" + conversationId + "/presence", count);
     }
 }

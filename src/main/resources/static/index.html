@@ -7,37 +7,44 @@
     <script src="https://cdn.jsdelivr.net/npm/@stomp/stompjs@7/bundles/stomp.umd.min.js"></script>
 </head>
 <body>
-<input id="conversationId" placeholder="Conversation ID"/>
-<input id="sender" placeholder="Your name"/>
-<input id="content" placeholder="Message"/>
+<input id="conversationId" placeholder="Conversation ID" />
+<input id="sender" placeholder="Your name" />
+<input id="content" placeholder="Message" />
 <button onclick="sendMessage()">Send</button>
+<p>Online in this conversation: <span id="presence">0</span></p>
 <ul id="messages"></ul>
 
 <script>
-    let subscription = null;
+    let chatSubscription = null;
+    let presenceSubscription = null;
     const stompClient = new StompJs.Client({
         webSocketFactory: () => new SockJS('/ws'),
         onConnect: () => {
             document.getElementById('conversationId').addEventListener('change', subscribeToConversation);
-            stompClient.subscribe('/topic/presence', (frame) => {
-                console.log('Pessoas conectadas:', frame.body);
-            });
         },
     });
     stompClient.activate();
 
     function subscribeToConversation() {
-        if (subscription) {
-            subscription.unsubscribe();
+        if (chatSubscription) {
+            chatSubscription.unsubscribe();
+            presenceSubscription.unsubscribe();
         }
         const conversationId = document.getElementById('conversationId').value;
         document.getElementById('messages').innerHTML = '';
-        subscription = stompClient.subscribe(`/topic/conversations/${conversationId}`, (frame) => {
+
+        chatSubscription = stompClient.subscribe(`/topic/conversations/${conversationId}`, (frame) => {
             const message = JSON.parse(frame.body);
             const item = document.createElement('li');
             item.textContent = `${message.sender}: ${message.content}`;
             document.getElementById('messages').appendChild(item);
         });
+
+        presenceSubscription = stompClient.subscribe(`/topic/conversations/${conversationId}/presence`, (frame) => {
+            document.getElementById('presence').textContent = frame.body;
+        });
+
+        stompClient.publish({ destination: `/app/conversations/${conversationId}/join` });
     }
 
     function sendMessage() {
@@ -46,7 +53,7 @@
         const content = document.getElementById('content').value;
         stompClient.publish({
             destination: `/app/conversations/${conversationId}/chat.send`,
-            body: JSON.stringify({sender, content}),
+            body: JSON.stringify({ sender, content }),
         });
         document.getElementById('content').value = '';
     }
