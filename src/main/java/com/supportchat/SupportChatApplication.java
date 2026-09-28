@@ -1,4 +1,4 @@
-package com.supportchat.support_chat;
+package com.supportchat;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
